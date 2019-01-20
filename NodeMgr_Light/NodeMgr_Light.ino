@@ -12,59 +12,54 @@ Documentation available on: https://github.com/mysensors/NodeManager
  
 // load user settings
 #include "config.h"
-// include supporting libraries
-#ifdef MY_GATEWAY_ESP8266
-  #include <ESP8266WiFi.h>
-#endif
-// load MySensors library
-#include <MySensors.h>
-// load NodeManager library
-#include "NodeManager.h"
 
-// create a NodeManager instance
-NodeManager nodeManager;
+// import NodeManager library (a nodeManager object will be then made available)
+#include <MySensors_NodeManager.h>
+
+/***********************************
+ * Add your sensors
+ */
+
+PowerManager power(3,4,500);  // (GND,Vcc,WaitTime_ms)
+
+#include <sensors/SensorBattery.h>
+SensorBattery battery;
+
+#include <sensors/SensorSignal.h>
+SensorSignal signalrep;
+
+#include <sensors/SensorDHT22.h>
+SensorDHT22 dht22(5); // Pin 5 is readout
+
+#include <sensors/SensorBH1750.h>
+SensorBH1750 bh1750; // Pins are impicit
+
+
+/***********************************
+ * Main Sketch
+ */
 
 // before
 void before() {
-  // setup the serial port baud rate
-  Serial.begin(MY_BAUD_RATE);  
+  /***********************************
+   * Configure your sensors
+   */
+   // report measures of every attached sensors every 10 minutes
+   nodeManager.setReportIntervalMinutes(10);
+   // set the node to sleep in 10 minutes cycles
+   nodeManager.setSleepMinutes(10);
+   // report battery and signal level every 90 minutes
+   battery.setReportIntervalMinutes(90);
+   signalrep.setReportIntervalMinutes(90);
+   // power all the nodes through dedicated pins
+   nodeManager.setPowerManager(power);
 
-  nodeManager.setBatteryReportMinutes(90);
-  nodeManager.setBatteryMax(3.27); /* Experience - Minimum go with default of 2.7 */
-  
-  nodeManager.setSignalReportMinutes(10);
-  nodeManager.setPowerPins(3, 4, 1000); //GND,Vcc,WaitTime_ms
-  /*
-   * Register below your sensors
-  */
-  nodeManager.setSleepMinutes(10);
-  nodeManager.setReportIntervalMinutes(10);
-  int i_light = nodeManager.registerSensor(SENSOR_BH1750); //Pins are implicit 
-  SensorBH1750* lightSensor = (SensorBH1750*)nodeManager.getSensor(i_light);
-  lightSensor->setMode(0x20); //BH1750_ONE_TIME_HIGH_RES_MODE 
-  //lightSensor->setSamples(3);
-  //lightSensor->setSamplesInterval(500);
-
-  // DHT21 connected to digital pin 3
-  nodeManager.registerSensor(SENSOR_DHT22,5); //Will actually register two sensors, temp & hum
-  int i_sensor;
-  int i_temp;
-  int i_hum;
-  for(i_sensor=0;i_sensor<255;i_sensor++){
-    Sensor* this_sensor = nodeManager.getSensor(i_sensor);
-    if (this_sensor->getPresentation() == S_TEMP) i_temp=i_sensor;
-    if (this_sensor->getPresentation() == S_HUM) i_hum=i_sensor;
-  }
-  Sensor* tempSensor = nodeManager.getSensor(i_temp);
-  Sensor* humSensor = nodeManager.getSensor(i_hum);
-  tempSensor->setFloatPrecision(1);
-  humSensor->setFloatPrecision(1);
-  /*
-   * Register above your sensors
-  */
-  nodeManager.setSignalCommand(SR_UPLINK_QUALITY);
-  nodeManager.before();
+   battery.setMaxVoltage(3.27);  // Experience!
+   bh1750.setMode(BH1750::ONE_TIME_HIGH_RES_MODE);  // HexPattern: 0x20 = BH1750_ONE_TIME_HIGH_RES_MODE
+   // call NodeManager before routine
+   nodeManager.before();
 }
+
 
 // presentation
 void presentation() {
@@ -84,14 +79,18 @@ void loop() {
   nodeManager.loop();
 }
 
+#if NODEMANAGER_RECEIVE == ON
 // receive
 void receive(const MyMessage &message) {
   // call NodeManager receive routine
   nodeManager.receive(message);
 }
+#endif
 
+#if NODEMANAGER_TIME == ON
 // receiveTime
 void receiveTime(unsigned long ts) {
   // call NodeManager receiveTime routine
   nodeManager.receiveTime(ts);
 }
+#endif
